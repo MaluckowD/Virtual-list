@@ -1,25 +1,39 @@
 'use client'
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 const items = Array.from({ length: 10_000}, (_, i) => ({
   id: Math.random().toString(36).slice(2),
   text: String(i),
 }));
 
-const itemHeight = 40
-const containerHeight = 600
-const overscan = 3
-const delay = 150
+interface UseFixedSizeListProps {
+  itemsCount: number;
+  itemHeight: number;
+  listHeight: number;
+  overscan?: number;
+  scrollingDelay?: number;
+  getScrollElement: () => HTMLElement | null;
+}
 
-export default function Home() {
-  const [listItems, setListItems] = useState(items)
+const DEFAULT_OVERSCAN = 3
+const DEFAULT_SCROLLING_DELAY = 150
+
+function useFixedSizeList(props: UseFixedSizeListProps) {
+  const {
+    itemsCount,
+    itemHeight,
+    listHeight,
+    overscan = DEFAULT_OVERSCAN,
+    scrollingDelay = DEFAULT_SCROLLING_DELAY,
+    getScrollElement
+  } = props
+
   const [scrollTop, setScrollTop] = useState(0)
   const [isScrolling, setIsScrolling] = useState(false)
-  const scrollRef = useRef<HTMLDivElement | null>(null)
 
   useLayoutEffect( () => {
-    const scrollElement = scrollRef.current
+    const scrollElement = getScrollElement()
     if (!scrollElement) return
     
     const handleScroll = () => {
@@ -36,7 +50,7 @@ export default function Home() {
   }, [])
 
   useEffect(() => {
-    const scrollElement = scrollRef.current
+    const scrollElement = getScrollElement()
     if (!scrollElement) return
     
     let timeoutId: number | null = null
@@ -49,7 +63,7 @@ export default function Home() {
 
       timeoutId = window.setTimeout(() => {
         setIsScrolling(false)
-      }, delay)
+      }, scrollingDelay)
     }
 
     scrollElement.addEventListener("scroll", handleScroll)
@@ -62,29 +76,53 @@ export default function Home() {
     }
   }, [])
 
-  const virtualList = useMemo(() => {
+  const { virtualItems, startIndex, endIndex } = useMemo(() => {
     let startRange = scrollTop
-    let endRange = scrollTop + containerHeight
+    let endRange = scrollTop + listHeight
 
     let startIndex = Math.floor( startRange / itemHeight)
     let endIndex = Math.ceil( endRange / itemHeight)
 
     startIndex = Math.max(0, startIndex - overscan)
-    endIndex = Math.min(items.length - 1, endIndex + overscan)
+    endIndex = Math.min(listHeight - 1, endIndex + overscan)
 
-    const virtualList = []
+    const virtualItems = []
 
     for (let index = startIndex; index <= endIndex; index++) {
-      virtualList.push({
+      virtualItems.push({
         index,
         offsetTop: index * itemHeight
       })
     }
 
-    return virtualList
-  }, [items.length, scrollTop])
+    return { virtualItems, startIndex, endIndex }
+  }, [scrollTop, listHeight, itemsCount])
 
-  const totalListHeight = items.length * itemHeight
+  const totalListHeight = listHeight * itemHeight
+
+  return {
+    virtualItems,
+    startIndex,
+    endIndex,
+    isScrolling,
+    totalListHeight,
+  }
+}
+
+const itemHeight = 40
+const containerHeight = 600
+
+export default function Home() {
+  const [listItems, setListItems] = useState(items)
+  const scrollRef = useRef<HTMLDivElement | null>(null)
+
+  const { virtualItems, isScrolling, totalListHeight } = useFixedSizeList({
+    itemsCount: items.length,
+    itemHeight,
+    listHeight: containerHeight,
+    getScrollElement: useCallback(() => scrollRef.current, [] )
+  })
+  
 
   return (
     <div style={{ padding: '0 12px' }}>
@@ -94,7 +132,7 @@ export default function Home() {
       </div>
       <div style = {{height: containerHeight, overflow: 'auto', border: '1px solid lightgray', position: 'relative'}} ref = {scrollRef}>
         <div style = {{ height: totalListHeight}}>
-          {virtualList.map((virtualItem, index) => {
+          {virtualItems.map((virtualItem, index) => {
             const item = listItems[virtualItem.index]
             return (
               <div
