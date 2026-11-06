@@ -9,7 +9,7 @@ const items = Array.from({ length: 10_000}, (_, i) => ({
 
 interface UseFixedSizeListProps {
   itemsCount: number;
-  itemHeight: number;
+  itemHeight: (index: number) => number;
   overscan?: number;
   scrollingDelay?: number;
   getScrollElement: () => HTMLElement | null;
@@ -57,7 +57,9 @@ function useFixedSizeList(props: UseFixedSizeListProps) {
 
   useLayoutEffect( () => {
     const scrollElement = getScrollElement()
-    if (!scrollElement) return
+    if (!scrollElement) {
+      return
+    }
     
     const handleScroll = () => {
       const scrollTop = scrollElement.scrollTop
@@ -74,7 +76,9 @@ function useFixedSizeList(props: UseFixedSizeListProps) {
 
   useEffect(() => {
     const scrollElement = getScrollElement()
-    if (!scrollElement) return
+    if (!scrollElement) {
+      return
+    }
     
     let timeoutId: number | null = null
     const handleScroll = () => {
@@ -99,29 +103,39 @@ function useFixedSizeList(props: UseFixedSizeListProps) {
     }
   }, [getScrollElement])
 
-  const { virtualItems, startIndex, endIndex } = useMemo(() => {
+  const { virtualItems, startIndex, endIndex, totalListHeight, allRows } = useMemo(() => {
     let startRange = scrollTop
     let endRange = scrollTop + listHeight
 
-    let startIndex = Math.floor( startRange / itemHeight)
-    let endIndex = Math.ceil( endRange / itemHeight)
+    let startIndex = -1
+    let endIndex = -1
+    let allRows = Array(itemsCount)
+    let totalListHeight = 0
 
-    startIndex = Math.max(0, startIndex - overscan)
-    endIndex = Math.min(listHeight - 1, endIndex + overscan)
-
-    const virtualItems = []
-
-    for (let index = startIndex; index <= endIndex; index++) {
-      virtualItems.push({
+    for (let index = 0; index < itemsCount; index++) {
+      const row = {
         index,
-        offsetTop: index * itemHeight
-      })
+        height: itemHeight(index),
+        offsetTop: totalListHeight
+      }
+
+      totalListHeight += row.height
+      allRows[index] = row
+
+      if (startIndex === -1 && row.height + row.offsetTop > startRange) {
+        startIndex = Math.max(0, index - overscan)
+      }
+
+      if (endIndex === -1 && row.height + row.offsetTop >= endRange ) {
+        endIndex = Math.min(index + overscan, itemsCount - 1)
+      }
+
     }
 
-    return { virtualItems, startIndex, endIndex }
-  }, [scrollTop, listHeight, itemsCount])
+    const virtualItems = allRows.slice(startIndex, endIndex + 1)
 
-  const totalListHeight = listHeight * itemHeight
+    return { virtualItems, startIndex, endIndex, totalListHeight, allRows}
+  }, [scrollTop, listHeight, itemsCount, overscan, itemHeight])
 
   return {
     virtualItems,
@@ -129,20 +143,20 @@ function useFixedSizeList(props: UseFixedSizeListProps) {
     endIndex,
     isScrolling,
     totalListHeight,
-    listHeight
+    listHeight,
+    allRows
   }
 }
 
-const itemHeight = 40
 const containerHeight = 600
 
 export default function Home() {
   const [listItems, setListItems] = useState(items)
   const scrollRef = useRef<HTMLDivElement | null>(null)
 
-  const { virtualItems, totalListHeight, listHeight } = useFixedSizeList({
+  const { virtualItems, totalListHeight } = useFixedSizeList({
     itemsCount: items.length,
-    itemHeight,
+    itemHeight: () => 40 + Math.round(10 * Math.random()),
     getScrollElement: useCallback(() => scrollRef.current, [] )
   })
   
@@ -161,7 +175,7 @@ export default function Home() {
               <div
                 key = {item.id}
                 style = {{ 
-                  height: itemHeight, 
+                  height: virtualItem.height, 
                   padding: '6px 12px',
                   position: 'absolute',
                   top: 0,
