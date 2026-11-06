@@ -10,7 +10,6 @@ const items = Array.from({ length: 10_000}, (_, i) => ({
 interface UseFixedSizeListProps {
   itemsCount: number;
   itemHeight: number;
-  listHeight: number;
   overscan?: number;
   scrollingDelay?: number;
   getScrollElement: () => HTMLElement | null;
@@ -23,7 +22,6 @@ function useFixedSizeList(props: UseFixedSizeListProps) {
   const {
     itemsCount,
     itemHeight,
-    listHeight,
     overscan = DEFAULT_OVERSCAN,
     scrollingDelay = DEFAULT_SCROLLING_DELAY,
     getScrollElement
@@ -31,6 +29,31 @@ function useFixedSizeList(props: UseFixedSizeListProps) {
 
   const [scrollTop, setScrollTop] = useState(0)
   const [isScrolling, setIsScrolling] = useState(false)
+  const [listHeight, setListHeight] = useState(0)
+
+  useLayoutEffect(() => {
+    const scrollElement = getScrollElement()
+
+    if (!scrollElement) {
+      return
+    }
+
+    const resizeObserver = new ResizeObserver(([entry]) => {
+      if (!entry) {
+        return
+      }
+
+      const height = entry.borderBoxSize[0]?.blockSize ?? entry.target.getBoundingClientRect().height
+      setListHeight(height)
+    })
+
+    resizeObserver.observe(scrollElement)
+    
+    return () => {
+      resizeObserver.disconnect()
+    }
+
+  }, [getScrollElement])
 
   useLayoutEffect( () => {
     const scrollElement = getScrollElement()
@@ -47,7 +70,7 @@ function useFixedSizeList(props: UseFixedSizeListProps) {
     scrollElement.addEventListener("scroll", handleScroll)
 
     return () => scrollElement.removeEventListener("scroll", handleScroll)
-  }, [])
+  }, [getScrollElement])
 
   useEffect(() => {
     const scrollElement = getScrollElement()
@@ -74,7 +97,7 @@ function useFixedSizeList(props: UseFixedSizeListProps) {
       }
       scrollElement.removeEventListener("scroll", handleScroll)
     }
-  }, [])
+  }, [getScrollElement])
 
   const { virtualItems, startIndex, endIndex } = useMemo(() => {
     let startRange = scrollTop
@@ -106,6 +129,7 @@ function useFixedSizeList(props: UseFixedSizeListProps) {
     endIndex,
     isScrolling,
     totalListHeight,
+    listHeight
   }
 }
 
@@ -116,10 +140,9 @@ export default function Home() {
   const [listItems, setListItems] = useState(items)
   const scrollRef = useRef<HTMLDivElement | null>(null)
 
-  const { virtualItems, isScrolling, totalListHeight } = useFixedSizeList({
+  const { virtualItems, totalListHeight, listHeight } = useFixedSizeList({
     itemsCount: items.length,
     itemHeight,
-    listHeight: containerHeight,
     getScrollElement: useCallback(() => scrollRef.current, [] )
   })
   
@@ -145,7 +168,7 @@ export default function Home() {
                   transform: `translateY(${virtualItem.offsetTop}px)`
                 }} 
                 >
-                  {isScrolling ? 'Scrolling...' : item.text}
+                  {item.text}
               </div>
             )
           })}
