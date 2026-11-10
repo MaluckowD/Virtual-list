@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useInsertionEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { faker } from '@faker-js/faker';
 
 const items = Array.from({ length: 10_000}, (_, i) => ({
@@ -31,6 +31,14 @@ const validateProps = (props: UseFixedSizeListProps) => {
   }
 }
 
+function useLatest<T>(value: T) {
+  const valueRef = useRef(value)
+  useInsertionEffect(() => {
+    valueRef.current = value
+  })
+  return valueRef
+}
+ 
 function useFixedSizeList(props: UseFixedSizeListProps) {
   validateProps(props)
     const {
@@ -172,6 +180,9 @@ function useFixedSizeList(props: UseFixedSizeListProps) {
   }, [scrollTop, listHeight, itemsCount, overscan, itemHeight, getItemKey, 
     estimateItemHeight, measurementCache])
 
+  
+  const latestData = useLatest({measurementCache, getItemKey})
+
   const measureElement = useCallback((element: Element | null) => {
     if (!element) {
       return
@@ -185,8 +196,14 @@ function useFixedSizeList(props: UseFixedSizeListProps) {
       return
     }
 
-    const size = element.getBoundingClientRect();
+    const { measurementCache, getItemKey} = latestData.current
     const key = getItemKey(index)
+
+    if (typeof measurementCache[key] === 'number') {
+      return
+    }
+
+    const size = element.getBoundingClientRect();
 
     setMeasurementCache((cache) => ({
       ...cache, [key]: size.height
