@@ -183,6 +183,43 @@ function useFixedSizeList(props: UseFixedSizeListProps) {
   
   const latestData = useLatest({measurementCache, getItemKey})
 
+  const itemsResizeObserver = useMemo(() => {
+    const ro = new ResizeObserver((entries) => {
+      entries.forEach((entry) => {
+        const element = entry.target
+
+        if (!element.isConnected) {
+          ro.unobserve(element)
+        }
+  
+        const indexAttribute = element.getAttribute("data-index") || ""
+        const index = parseInt(indexAttribute, 10)
+
+        if (isNaN(index)) {
+          console.error("dynamic elements must have a valid `data-index` attribute")
+          return
+        }
+
+        const { measurementCache, getItemKey} = latestData.current
+        const key = getItemKey(index)
+
+        const height = entry.borderBoxSize[0].blockSize ?? element.getBoundingClientRect().height;
+
+        if (measurementCache[key] === height) {
+          return
+        }
+
+        setMeasurementCache((cache) => ({
+          ...cache, [key]: height
+        }))
+
+      })
+    })
+
+    return ro
+
+  }, [])
+
   const measureElement = useCallback((element: Element | null) => {
     if (!element) {
       return
@@ -198,6 +235,7 @@ function useFixedSizeList(props: UseFixedSizeListProps) {
 
     const { measurementCache, getItemKey} = latestData.current
     const key = getItemKey(index)
+    itemsResizeObserver.observe(element)
 
     if (typeof measurementCache[key] === 'number') {
       return
@@ -209,7 +247,7 @@ function useFixedSizeList(props: UseFixedSizeListProps) {
       ...cache, [key]: size.height
     }))
 
-  }, [getItemKey])
+  }, [getItemKey, itemsResizeObserver])
 
   return {
     virtualItems,
@@ -249,15 +287,15 @@ export default function Home() {
             const item = listItems[virtualItem.index]
             return (
               <div
-                key = {item.id}
-                data-index = {virtualItem.index}
-                ref = {measureElement}
-                style = {{ 
-                  padding: '6px 12px',
-                  position: 'absolute',
-                  top: 0,
-                  transform: `translateY(${virtualItem.offsetTop}px)`
-                }} 
+                  key = {item.id}
+                  data-index = {virtualItem.index}
+                  ref = {measureElement}
+                  style = {{ 
+                    padding: '6px 12px',
+                    position: 'absolute',
+                    top: 0,
+                    transform: `translateY(${virtualItem.offsetTop}px)`
+                  }} 
                 >
                   {item.text}
                 </div>
