@@ -181,7 +181,7 @@ function useFixedSizeList(props: UseFixedSizeListProps) {
     estimateItemHeight, measurementCache])
 
   
-  const latestData = useLatest({measurementCache, getItemKey})
+  const latestData = useLatest({measurementCache, getItemKey, allRows, getScrollElement, scrollTop})
 
   const itemsResizeObserver = useMemo(() => {
     const ro = new ResizeObserver((entries) => {
@@ -190,6 +190,7 @@ function useFixedSizeList(props: UseFixedSizeListProps) {
 
         if (!element.isConnected) {
           ro.unobserve(element)
+          return
         }
   
         const indexAttribute = element.getAttribute("data-index") || ""
@@ -200,13 +201,23 @@ function useFixedSizeList(props: UseFixedSizeListProps) {
           return
         }
 
-        const { measurementCache, getItemKey} = latestData.current
+        const { measurementCache, getItemKey, allRows, getScrollElement, scrollTop } = latestData.current
         const key = getItemKey(index)
 
         const height = entry.borderBoxSize[0].blockSize ?? element.getBoundingClientRect().height;
 
         if (measurementCache[key] === height) {
           return
+        }
+        
+        const delta = height - allRows[index].height
+        const item = allRows[index]
+
+        if (delta !== 0 && scrollTop > item.offsetTop) {
+          const element = getScrollElement()
+          if (element) {
+            element.scrollBy(0, delta)
+          }
         }
 
         setMeasurementCache((cache) => ({
@@ -233,7 +244,7 @@ function useFixedSizeList(props: UseFixedSizeListProps) {
       return
     }
 
-    const { measurementCache, getItemKey} = latestData.current
+    const { measurementCache, getItemKey, allRows, getScrollElement, scrollTop} = latestData.current
     const key = getItemKey(index)
     itemsResizeObserver.observe(element)
 
@@ -242,6 +253,16 @@ function useFixedSizeList(props: UseFixedSizeListProps) {
     }
 
     const size = element.getBoundingClientRect();
+
+    const item = allRows[index]
+    const delta = size.height - allRows[index].height
+
+    if (delta !== 0 && scrollTop > item.offsetTop) {
+      const element = getScrollElement()
+      if (element) {
+        element.scrollBy(0, delta)
+      }
+    }
 
     setMeasurementCache((cache) => ({
       ...cache, [key]: size.height
@@ -297,7 +318,7 @@ export default function Home() {
                     transform: `translateY(${virtualItem.offsetTop}px)`
                   }} 
                 >
-                  {item.text}
+                  {item.id} - {item.text}
                 </div>
             )
           })}
