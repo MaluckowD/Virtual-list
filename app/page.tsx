@@ -188,17 +188,17 @@ function useDynamicSizeList(props: UseDynamicSizeListProps) {
 				totalListHeight += row.height
 				allRows[index] = row
 
-				if (
-					startIndex === -1 &&
-					row.height + row.offsetTop > startRange
-				) {
-					startIndex = Math.max(0, index - overscan)
+				if (row.height + row.offsetTop < startRange) {
+					startIndex++
 				}
 
-				if (endIndex === -1 && row.height + row.offsetTop >= endRange) {
-					endIndex = Math.min(index + overscan, itemsCount - 1)
+				if (row.height + row.offsetTop < endRange) {
+					endIndex++
 				}
 			}
+
+			startIndex = Math.max(0, startIndex - overscan)
+			endIndex = Math.min(endIndex + overscan, itemsCount - 1)
 
 			const virtualItems = allRows.slice(startIndex, endIndex + 1)
 
