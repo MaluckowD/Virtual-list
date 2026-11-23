@@ -308,6 +308,7 @@ function useDynamicSizeList(props: UseDynamicSizeListProps) {
 
 	const measureElement = useCallback(
 		(element: Element | null) => {
+			if (!itemsResizeObserver) return
 			measureElementsInner(element, itemsResizeObserver)
 		},
 		[itemsResizeObserver]
